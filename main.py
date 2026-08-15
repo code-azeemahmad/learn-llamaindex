@@ -1,8 +1,9 @@
-from llama_index.core import (  # two core abstractions
+from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
     VectorStoreIndex,
 )
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 
@@ -20,22 +21,37 @@ Settings.embed_model = OllamaEmbedding(
 
 
 # Load documents
-documents = SimpleDirectoryReader("data").load_data()   # Load documents from this directory.
+documents = SimpleDirectoryReader("data").load_data()
 
 print(f"Loaded documents: {len(documents)}")
 
 print("First document metadata:")
 print(documents[0].metadata)
 
+node_parser = SentenceSplitter(
+    chunk_size=256,
+    chunk_overlap=20
+)
 
 # Build index
-index = VectorStoreIndex.from_documents(documents)  # Documents are transformed into nodes
+index = VectorStoreIndex.from_documents(documents, transformations=[node_parser])
+
+# Inspect the nodes
+nodes = list(index.docstore.docs.values())  # inspection/debugging technique, not used in production
+
+print(f"\nNumber of nodes: {len(nodes)}")
+
+for i, node in enumerate(nodes):
+    print(f"\n--- Node {i} ---")
+    print(f"Node ID: {node.node_id}")
+    print(f"Text: {node.text}")
+    print(f"Metadata: {node.metadata}")
 
 # Create query engine
-query_engine = index.as_query_engine()  # Give a query interface over this index
+query_engine = index.as_query_engine()
 
 # Ask question
-response = query_engine.query(  # LlamaIndex orchestrates the retrieval/query process
+response = query_engine.query(
     "What is RAG?"
 )
 

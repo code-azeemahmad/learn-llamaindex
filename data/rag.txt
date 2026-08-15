@@ -4,4 +4,22 @@ A RAG system first retrieves relevant information from an external knowledge sou
 
 RAG is useful when an application needs to answer questions using information that may not be present in the language model's training data.
 
-Vector databases can store embeddings and efficiently retrieve semantically similar pieces of information.
+Vector databases store vector embeddings and allow applications to perform efficient similarity search.
+
+Embeddings are numerical representations of text that capture semantic relationships between pieces of information.
+
+A document is usually divided into smaller pieces before embedding. These pieces are commonly called chunks. Chunking allows a retrieval system to find only the relevant portion of a larger document.
+
+Chunk size affects retrieval quality. Very small chunks may lose important context, while very large chunks may contain too much unrelated information.
+
+Chunk overlap allows neighboring chunks to share some content. This can reduce the chance that important information is split across chunk boundaries.
+
+After documents are chunked, an embedding model converts each chunk into a vector representation.
+
+The vectors are stored in a vector database such as Qdrant. During a query, the user's question is embedded into a vector and compared against document vectors.
+
+The most relevant chunks are retrieved and passed to the language model as context.
+
+The language model then generates an answer using the retrieved information.
+
+A production RAG system can also use metadata filtering, hybrid search, query rewriting, reranking, caching, evaluation, and observability.
