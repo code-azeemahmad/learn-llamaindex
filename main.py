@@ -1,12 +1,15 @@
+import qdrant_client
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
+    StorageContext,
     VectorStoreIndex,
 )
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
+from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 # LLM
 Settings.llm = Ollama(
@@ -22,64 +25,45 @@ Settings.embed_model = OllamaEmbedding(
 
 # Load documents
 documents = SimpleDirectoryReader("data").load_data()
-
 print(f"Loaded documents: {len(documents)}")
 
-print("First document metadata:")
-print(documents[0].metadata)
-
+# Ingestion Pipeline
 pipeline = IngestionPipeline(
     transformations=[
         SentenceSplitter(
             chunk_size=256,
             chunk_overlap=20
         ),
-        # Additional transformations
     ]
 )
 
 nodes = pipeline.run(documents=documents)
+print(f"Number of nodes: {len(nodes)}")
 
-print(f"\nNumber of nodes: {len(nodes)}")
+client = qdrant_client.QdrantClient(
+    host="localhost",
+    port=6333
+)
 
-for i, node in enumerate(nodes):
-    print(f"\n--- Node {i} ---")
-    print(f"Node ID: {node.node_id}")
-    print(f"Text: {node.text}")
-    print(f"Metadata: {node.metadata}")
+vector_store = QdrantVectorStore(
+    client=client,
+    collection_name="llamaindex_rag",
+)
+
+storage_context = StorageContext.from_defaults(
+    vector_store=vector_store,
+)
 
 # Build index
-index = VectorStoreIndex.from_documents(nodes)
-
-print("\n========== INDEX ==========")
-
-print("Index:")
-print(type(index))
-
-print("\nStorage context:")
-print(type(index.storage_context))
-
-print("\nDoc store:")
-print(type(index.storage_context.docstore))
-
-print("\nVector store:")
-print(type(index.storage_context.vector_store))
-
-
-print("\n========== STORED NODES ==========")
-
-for node_id, node in index.storage_context.docstore.docs.items():
-    print(f"\nNode ID: {node_id}")
-    print(f"Text: {node.text[:150]}")
-    print(f"Metadata: {node.metadata}")
-
-print("_" * 50)
-
-# Inspect the nodes
-nodes = list(index.docstore.docs.values())
+index = VectorStoreIndex(
+    nodes, 
+    storage_context=storage_context
+)
 
 # Create query engine
-query_engine = index.as_query_engine()
+query_engine = index.as_query_engine(
+    similarity_top_k=2
+)
 
 # Ask question
 response = query_engine.query(
@@ -88,3 +72,23 @@ response = query_engine.query(
 
 print("\nAnswer:")
 print(response)
+
+print("_" * 90)
+
+collections = client.get_collections()
+print(collections)
+
+collection_info = client.get_collection(
+    "llamaindex_rag"
+)
+print(collection_info)
+
+print("_" * 90)
+
+print(
+    type(index.storage_context.vector_store)
+)
+
+print(
+    index.storage_context.vector_store
+)
