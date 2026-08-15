@@ -3,6 +3,7 @@ from llama_index.core import (
     SimpleDirectoryReader,
     VectorStoreIndex,
 )
+from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
@@ -28,16 +29,17 @@ print(f"Loaded documents: {len(documents)}")
 print("First document metadata:")
 print(documents[0].metadata)
 
-node_parser = SentenceSplitter(
-    chunk_size=256,
-    chunk_overlap=20
+pipeline = IngestionPipeline(
+    transformations=[
+        SentenceSplitter(
+            chunk_size=256,
+            chunk_overlap=20
+        ),
+        # Additional transformations
+    ]
 )
 
-# Build index
-index = VectorStoreIndex.from_documents(documents, transformations=[node_parser])
-
-# Inspect the nodes
-nodes = list(index.docstore.docs.values())  # inspection/debugging technique, not used in production
+nodes = pipeline.run(documents=documents)
 
 print(f"\nNumber of nodes: {len(nodes)}")
 
@@ -47,12 +49,18 @@ for i, node in enumerate(nodes):
     print(f"Text: {node.text}")
     print(f"Metadata: {node.metadata}")
 
+# Build index
+index = VectorStoreIndex.from_documents(nodes)
+
+# Inspect the nodes
+nodes = list(index.docstore.docs.values())  # inspection/debugging technique, not used in production
+
 # Create query engine
 query_engine = index.as_query_engine()
 
 # Ask question
 response = query_engine.query(
-    "What is RAG?"
+    "Why is chunking important in RAG?"
 )
 
 print("\nAnswer:")
