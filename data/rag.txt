@@ -1,0 +1,7 @@
+Retrieval-Augmented Generation, commonly called RAG, combines information retrieval with language generation.
+
+A RAG system first retrieves relevant information from an external knowledge source and then provides that information to a language model as context.
+
+RAG is useful when an application needs to answer questions using information that may not be present in the language model's training data.
+
+Vector databases can store embeddings and efficiently retrieve semantically similar pieces of information.

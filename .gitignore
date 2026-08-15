@@ -1,0 +1,55 @@
+# ==========================================
+# Python & Virtual Environments
+# ==========================================
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ==========================================
+# Data & Vector DB Storage (Ignore local DBs, preserve .txt)
+# ==========================================
+# Ignore local storage persistence (Qdrant, Chroma, LlamaIndex storage)
+storage/
+qdrant_data/
+chroma_db/
+*.sqlite3
+*.db
+
+# ==========================================
+# Text Files & RAG Documents (CRITICAL SETUP)
+# ==========================================
+# Explicitly ALLOW text files anywhere in the project
+!*.txt
+!data/*.txt
+
+# (Optional) If you generate temporary output logs/txt files in an output folder, ignore ONLY that folder:
+# output/*.txt
+
+# ==========================================
+# IDE & System Files
+# ==========================================
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Helper Batch Scripts (If you want them local-only)
+# ==========================================
+# vpy.bat
+# vpip.bat
