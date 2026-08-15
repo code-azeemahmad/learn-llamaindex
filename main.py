@@ -4,11 +4,10 @@ from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,
     VectorStoreIndex,
-    get_response_synthesizer,
 )
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -62,41 +61,76 @@ index = VectorStoreIndex(
     storage_context=storage_context
 )
 
-
-"""High Level API
-query_engine = index.as_query_engine(
-    similarity_top_k=2,
-)
-"""
-
-
 retriever = index.as_retriever(
-    similarity_top_k=2
+    similarity_top_k=5
 )
 
-response_synthesizer = get_response_synthesizer(
-    response_mode="refine"  # response_mode="compact"
-)
-print(type(response_synthesizer))
-print(response_synthesizer)
+# nodes = retriever.retrieve(
+#     "What is Retrieval-Augmented Generation?"
+# )
 
-# Composed API
-query_engine = RetrieverQueryEngine(
-    retriever=retriever,
-    response_synthesizer=response_synthesizer,
+# print("\nBefore filtering:")
+
+# for item in nodes:
+#     print(
+#         f"Score: {item.score:.4f}"
+#     )
+
+# postprocessor = SimilarityPostprocessor(
+#     similarity_cutoff=0.60,
+# )
+
+# filtered_nodes = postprocessor.postprocess_nodes(
+#     nodes
+# )
+
+# print("\nAfter filtering:")
+
+# for item in filtered_nodes:
+#     print(
+#         f"Score: {item.score:.4f}"
+#     )
+
+similarity_filter = SimilarityPostprocessor(
+    similarity_cutoff=0.750,
 )
 
+query_engine = index.as_query_engine(
+    similarity_top_k=3,
+    SimilarityPostprocessor=[
+        similarity_filter,
+    ]
+)
 
 # Ask question
 response = query_engine.query(
     "What role does a vector database play in RAG?"
 )
 
-for source in response.source_nodes:
-    print("Score:", source.score)
-    print("Node ID:", source.node.node_id)
-    print("Text:", source.node.text)
-    print()
-
 print("\nAnswer:")
 print(response)
+
+for source in response.source_nodes:
+    print(
+        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
+        source.score,
+        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
+        source.node.text,
+        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
+    )
+
+"""
+Query
+  ↓
+Retriever
+  ↓
+Top 5 Nodes
+  ↓
+SimilarityPostprocessor
+  ↓
+Nodes >= 0.60
+  ↓
+Response Synthesizer
+  ↓
+LLM
+"""

@@ -23,3 +23,117 @@ The most relevant chunks are retrieved and passed to the language model as conte
 The language model then generates an answer using the retrieved information.
 
 A production RAG system can also use metadata filtering, hybrid search, query rewriting, reranking, caching, evaluation, and observability.
+
+1. Introduction to Vector Search & RAG Systems
+Retrieval-Augmented Generation (RAG) is a modern architectural pattern designed to optimize
+the output of Large Language Models (LLMs) by referencing an authoritative knowledge base
+outside of its training data sources. While LLMs are trained on vast amounts of data, they are
+inherently static and prone to hallucinations when queried about specific domain knowledge,
+internal organizational data, or recently updated information.
+To overcome these limitations, RAG integrates dynamic retrieval mechanisms into the prompt
+pipeline. When a user submits a query, the system first retrieves relevant content snippets from a
+structured or unstructured document repository. These retrieved snippets are then attached
+alongside the user query as context, enabling the model to generate highly accurate, verifiable,
+and contextually grounded responses.
+1.1 Core Components of a Modern RAG Pipeline
+An enterprise-grade RAG pipeline consists of several interconnected modules working in
+sequence:
+1. Ingestion and Extraction: Source documents (such as PDF files, Word documents, Markdown
+files, or database records) are parsed and converted into normalized plain text representations.
+2. Chunking Strategy: Continuous text streams are split into manageable chunks based on token
+counts, character lengths, or semantic boundaries to maintain context integrity while staying
+within model context windows.
+3. Embedding Generation: High-dimensional numerical vectors are computed for each chunk
+using specialized dense embedding models like OpenAI text-embedding-3 or open-source
+SentenceTransformers.
+4. Vector Storage: Dense vectors along with metadata payload (such as source filename, chunk
+index, page number, and original text snippet) are indexed inside specialized vector databases
+like Qdrant, Pinecone, or Milvus.
+Page 1 of 5
+RAG & Vector Database Sample Document
+2. Document Processing & Chunking Strategies
+The success of any vector retrieval system depends heavily on how input documents are
+segmented before vectorization. Poor chunking leads to loss of semantic coherence, diluted
+vector embeddings, and irrelevant retrieval results during user queries.
+2.1 Character vs. Recursive Character Chunking
+Basic character-level splitting cuts text strictly at fixed character boundaries (e.g., every 500
+characters). However, this naive approach often cuts words or sentences in half, ruining
+semantic meaning. A superior approach is the Recursive Character Text Splitter, which attempts
+to split text using a hierarchy of separators (e.g., double line breaks, single line breaks, spaces,
+and punctuation).
+"Semantic chunking ensures that paragraphs, bullet points, and cohesive logical ideas remain
+together within a single vector representation, preserving original context for downstream
+language model inference." 
+2.2 Overlap and Boundary Preservation
+When chunking continuous prose, applying a sliding window overlap (e.g., 500-token chunk size
+with 50-token overlap) ensures that key facts crossing chunk boundaries are not lost. If a critical
+piece of information spans across the boundary of Chunk A and Chunk B, the overlap guarantees
+that at least one of the vector chunks retains the complete context.
+For technical and structured documents, metadata preservation during chunking is equally
+critical. Storing attributes like original document ID, source URL, page number, header hierarchy,
+and creation timestamp directly inside vector payload fields allows downstream applications to
+filter search spaces efficiently before executing dense vector similarity calculations.
+Page 2 of 5
+RAG & Vector Database Sample Document
+3. Vector Database Architecture & Similarity
+Metrics
+Vector databases are purpose-built database engines optimized for storing, indexing, and
+querying high-dimensional vector representations. Unlike traditional relational databases that
+perform exact keyword matches or range queries, vector databases compute mathematical
+proximity between vector representations.
+3.1 High-Dimensional Vector Spaces
+When text is processed through an embedding model, it is transformed into a dense float array
+(vector) spanning hundreds or thousands of dimensions (e.g., 384, 768, or 1536 dimensions). In
+this high-dimensional space, semantically similar concepts map to points that lie close to each
+other, even if they share zero identical words.
+3.2 Distance Metrics
+Common mathematical metrics used to calculate similarity between query vectors and document
+chunk vectors include:
+Cosine Similarity: Measures the cosine of the angle between two vectors, ranging from -1 to 1. It
+focuses on orientation rather than magnitude, making it ideal for text comparison.
+Dot Product (Inner Product): Measures both angle and magnitude. Often used when vectors are
+normalized to unit length, as dot product becomes mathematically equivalent to cosine similarity
+while being faster to compute.
+Euclidean Distance (L2 Distance): Measures the straight-line geometric distance between two
+vector points in space. Lower distances represent higher similarity.
+Page 3 of 5
+RAG & Vector Database Sample Document
+4. Fast Approximate Nearest Neighbor (ANN)
+Indexing
+Searching through millions of high-dimensional vectors using brute-force linear comparison
+(Exact Nearest Neighbor) is computationally prohibitive for real-time applications. To achieve
+sub-millisecond retrieval latencies, production vector databases employ Approximate Nearest
+Neighbor (ANN) indexing structures.
+4.1 Hierarchical Navigable Small World (HNSW)
+HNSW is currently one of the most widely adopted and performant ANN graph algorithms. It
+constructs a multi-layered graph structure where upper layers contain long-range connections
+for fast greedy navigation across vector space, while lower layers contain dense short-range
+connections for precise localized search.
+4.2 Product Quantization (PQ) and Compression
+In large-scale production deployments storing tens of millions of vectors, RAM consumption can
+become a primary bottleneck. Product Quantization reduces memory overhead by dividing high
+dimensional vectors into smaller sub-vectors and quantizing them into compact byte codes,
+allowing compressed vectors to fit inside system memory with minimal precision loss.
+"Implementing effective indexing strategies like HNSW combined with scalar or product
+quantization allows systems to achieve high retrieval recall (95%+) while servicing thousands
+of concurrent search queries per second." 
+Page 4 of 5
+RAG & Vector Database Sample Document
+5. End-to-End RAG Ingestion Workflow
+To successfully process this sample PDF document into your application pipeline, follow the
+standardized execution flow below:
+5.1 Step-by-Step Implementation Flow
+Step 1 — Document Extraction: Utilize PDF extraction libraries such as PyMuPDF (fitz) or pypdf
+to extract raw text along with page numbers from the document file.
+Step 2 — Semantic Chunking: Apply a recursive text splitter configured with a target chunk size
+of 500 characters and a chunk overlap of 50 characters.
+Step 3 — Embeddings Generation: Pass each generated chunk to an embedding provider (such
+as Ollama, OpenAI, or SentenceTransformers) to generate dense float array embeddings.
+Step 4 — Database Upsert: Construct a payload container containing `document_id`, `filename`,
+`page_number`, `chunk_id`, and `text` content, then upsert the point record into your vector
+database collection (e.g., Qdrant or Pinecone).
+Step 5 — Query & Verification: Issue a test vector query against the collection (e.g., "How does
+HNSW algorithm work?") and verify that relevant chunks from Page 4 are correctly retrieved
+with high similarity scores.
+Page 5 of 5
+RAG & Vector Database Sample Document
