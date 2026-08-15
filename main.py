@@ -62,6 +62,7 @@ index = VectorStoreIndex(
     storage_context=storage_context
 )
 
+
 """High Level API
 query_engine = index.as_query_engine(
     similarity_top_k=2,
@@ -73,7 +74,11 @@ retriever = index.as_retriever(
     similarity_top_k=2
 )
 
-response_synthesizer = get_response_synthesizer()
+response_synthesizer = get_response_synthesizer(
+    response_mode="refine"  # response_mode="compact"
+)
+print(type(response_synthesizer))
+print(response_synthesizer)
 
 # Composed API
 query_engine = RetrieverQueryEngine(
@@ -81,34 +86,17 @@ query_engine = RetrieverQueryEngine(
     response_synthesizer=response_synthesizer,
 )
 
-# print("_" * 90)
-# query = "Why is chunking important in RAG?"
-# retrieved_nodes = retriever.retrieve(query)
-# print(f"Retrieved nodes: {len(retrieved_nodes)}")
-
-# for i, item in enumerate(retrieved_nodes):
-#     print(f"\n--- Retrieved Node {i} ---")
-#     print(f"Score: {item.score}")
-#     print(f"Node ID: {item.node.node_id}")
-#     print(f"Text:\n{item.node.text}")
-# print("_" * 90)
 
 # Ask question
 response = query_engine.query(
-    "Why is chunking important in RAG?"
+    "What role does a vector database play in RAG?"
 )
 
-
-# print("_" * 90)
-# print("\n========== SOURCES ==========")
-
-# for i, source in enumerate(response.source_nodes):
-#     print(f"\n--- Source {i} ---")
-#     print(f"Score: {source.score}")
-#     print(f"Node ID: {source.node.node_id}")
-#     print(f"Text:\n{source.node.text}")
-# print("_" * 90)
-
+for source in response.source_nodes:
+    print("Score:", source.score)
+    print("Node ID:", source.node.node_id)
+    print("Text:", source.node.text)
+    print()
 
 print("\nAnswer:")
 print(response)
