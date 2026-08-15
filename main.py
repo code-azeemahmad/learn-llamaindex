@@ -15,24 +15,10 @@ Settings.llm = Ollama(
 )
 
 # Embedding model
-embedding_model = Settings.embed_model = OllamaEmbedding(
+Settings.embed_model = OllamaEmbedding(
     model_name="nomic-embed-text:latest",
     base_url="http://localhost:11434",
 )
-
-vector = embedding_model.get_text_embedding(
-    "Retrieval-Augmented Generation combines retrieval with generation."
-)
-print("Retrieval-Augmented Generation combines retrieval with generation.")
-print(f"Embedding dimension: {len(vector)}")
-print(f"First 10 values: {vector[:10]}")
-
-query_vector = embedding_model.get_query_embedding(
-    "What is RAG?"
-)
-print("What is RAG?")
-print(f"Query embedding dimension: {len(query_vector)}")
-print(f"First 10 values: {query_vector[:10]}")
 
 # Load documents
 documents = SimpleDirectoryReader("data").load_data()
@@ -65,8 +51,32 @@ for i, node in enumerate(nodes):
 # Build index
 index = VectorStoreIndex.from_documents(nodes)
 
+print("\n========== INDEX ==========")
+
+print("Index:")
+print(type(index))
+
+print("\nStorage context:")
+print(type(index.storage_context))
+
+print("\nDoc store:")
+print(type(index.storage_context.docstore))
+
+print("\nVector store:")
+print(type(index.storage_context.vector_store))
+
+
+print("\n========== STORED NODES ==========")
+
+for node_id, node in index.storage_context.docstore.docs.items():
+    print(f"\nNode ID: {node_id}")
+    print(f"Text: {node.text[:150]}")
+    print(f"Metadata: {node.metadata}")
+
+print("_" * 50)
+
 # Inspect the nodes
-nodes = list(index.docstore.docs.values())  # inspection/debugging technique, not used in production
+nodes = list(index.docstore.docs.values())
 
 # Create query engine
 query_engine = index.as_query_engine()
