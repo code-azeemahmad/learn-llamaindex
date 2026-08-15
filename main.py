@@ -4,9 +4,11 @@ from llama_index.core import (
     SimpleDirectoryReader,
     StorageContext,
     VectorStoreIndex,
+    get_response_synthesizer,
 )
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -60,35 +62,53 @@ index = VectorStoreIndex(
     storage_context=storage_context
 )
 
-# Create query engine
+"""High Level API
 query_engine = index.as_query_engine(
+    similarity_top_k=2,
+)
+"""
+
+
+retriever = index.as_retriever(
     similarity_top_k=2
 )
+
+response_synthesizer = get_response_synthesizer()
+
+# Composed API
+query_engine = RetrieverQueryEngine(
+    retriever=retriever,
+    response_synthesizer=response_synthesizer,
+)
+
+# print("_" * 90)
+# query = "Why is chunking important in RAG?"
+# retrieved_nodes = retriever.retrieve(query)
+# print(f"Retrieved nodes: {len(retrieved_nodes)}")
+
+# for i, item in enumerate(retrieved_nodes):
+#     print(f"\n--- Retrieved Node {i} ---")
+#     print(f"Score: {item.score}")
+#     print(f"Node ID: {item.node.node_id}")
+#     print(f"Text:\n{item.node.text}")
+# print("_" * 90)
 
 # Ask question
 response = query_engine.query(
     "Why is chunking important in RAG?"
 )
 
+
+# print("_" * 90)
+# print("\n========== SOURCES ==========")
+
+# for i, source in enumerate(response.source_nodes):
+#     print(f"\n--- Source {i} ---")
+#     print(f"Score: {source.score}")
+#     print(f"Node ID: {source.node.node_id}")
+#     print(f"Text:\n{source.node.text}")
+# print("_" * 90)
+
+
 print("\nAnswer:")
 print(response)
-
-print("_" * 90)
-
-collections = client.get_collections()
-print(collections)
-
-collection_info = client.get_collection(
-    "llamaindex_rag"
-)
-print(collection_info)
-
-print("_" * 90)
-
-print(
-    type(index.storage_context.vector_store)
-)
-
-print(
-    index.storage_context.vector_store
-)
