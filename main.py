@@ -15,11 +15,24 @@ Settings.llm = Ollama(
 )
 
 # Embedding model
-Settings.embed_model = OllamaEmbedding(
+embedding_model = Settings.embed_model = OllamaEmbedding(
     model_name="nomic-embed-text:latest",
     base_url="http://localhost:11434",
 )
 
+vector = embedding_model.get_text_embedding(
+    "Retrieval-Augmented Generation combines retrieval with generation."
+)
+print("Retrieval-Augmented Generation combines retrieval with generation.")
+print(f"Embedding dimension: {len(vector)}")
+print(f"First 10 values: {vector[:10]}")
+
+query_vector = embedding_model.get_query_embedding(
+    "What is RAG?"
+)
+print("What is RAG?")
+print(f"Query embedding dimension: {len(query_vector)}")
+print(f"First 10 values: {query_vector[:10]}")
 
 # Load documents
 documents = SimpleDirectoryReader("data").load_data()
