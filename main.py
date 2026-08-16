@@ -12,6 +12,8 @@ from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
 from llama_index.core.retrievers.fusion_retriever import FUSION_MODES
+from llama_index.core.storage.docstore import SimpleDocumentStore
+from llama_index.core.storage.index_store import SimpleIndexStore
 from llama_index.core.vector_stores import (
     MetadataFilter,
     MetadataFilters,
@@ -51,9 +53,8 @@ vector_store = QdrantVectorStore(
     collection_name="llamaindex_rag",
 )
 
-storage_context = StorageContext.from_defaults(
-    vector_store=vector_store,
-)
+index_store = SimpleIndexStore()
+
 
 pipeline = create_ingestion_pipeline(
     vector_store=vector_store
@@ -65,85 +66,155 @@ print(f"Number of nodes: {len(nodes)}")
 persist_pipeline_state(pipeline)
 
 
-# Inspect the metadata of the first processed node
-if nodes:
-    print("\n--- SAMPLE NODE METADATA ---")
-    print("ID:", nodes[0].node_id)
-    print("Hash:", nodes[0].hash)
-    print("Metadata:", nodes[0].metadata)
+docstore = SimpleDocumentStore()
+docstore.add_documents(nodes)
 
 
-bm25_index = BM25Index()
-bm25_index.add_documents(nodes)
-bm25_retriever = BM25Retriever(
-    bm25_index=bm25_index,
-    similarity_top_k=5,
+storage_context = StorageContext.from_defaults(
+    vector_store=vector_store,
+    docstore=docstore,
+    index_store=index_store,
 )
 
-similarity_filter = SimilarityPostprocessor(
-    similarity_cutoff=0.30,
+print("\n========== STORAGE CONTEXT ==========")
+
+print("Vector store:")
+print(storage_context.vector_store)
+
+print("\nDoc store:")
+print(storage_context.docstore)
+
+print("\nIndex store:")
+print(storage_context.index_store)
+
+
+print("\n========== VECTOR STORE ==========")
+
+print("Type:")
+print(type(vector_store))
+
+print("\nCollection:")
+print(vector_store.collection_name)
+
+print("\nClient:")
+print(type(vector_store.client))
+
+
+print("\n========== DOCSTORE ==========")
+
+print(type(storage_context.docstore))
+
+print("Number of stored nodes:")
+print(len(storage_context.docstore.docs))
+
+node_id = nodes[0].node_id
+print("Node ID:", node_id)
+
+stored_node = storage_context.docstore.get_document(
+    node_id
+)
+print("\nStored node:")
+print(stored_node.text)
+
+
+print("\n========== INDEX STORE ==========")
+
+print(
+    "Type:",
+    type(storage_context.index_store)
 )
 
-# Reranker after retrieval
-reranker = SentenceTransformerRerank(
-    model="BAAI/bge-reranker-base",
-    top_n=3,
+print(
+    "Index structures:",
+    storage_context.index_store.index_structs()
 )
 
-# Metadata Filtering
-filters = MetadataFilters(
-    filters=[
-        MetadataFilter(
-            key="category",
-            value="rag",
-        ),
-        MetadataFilter(
-            key="document_type",
-            value="policy",
-        )
-    ]
-)
+index_structs = storage_context.index_store.index_structs()
+
+# print("\nIndex ID:")
+# print(index.index_id)
+
+for struct in index_structs:
+    print("\n========== INDEX STRUCT ==========")
+    print(type(struct))
+    print(struct)
+
+# print("\n========== Persistence ==========")
+# index.storage_context.persist(
+#     persist_dir="./storage"
+# )
+
+# bm25_index = BM25Index()
+# bm25_index.add_documents(nodes)
+# bm25_retriever = BM25Retriever(
+#     bm25_index=bm25_index,
+#     similarity_top_k=5,
+# )
+
+# similarity_filter = SimilarityPostprocessor(
+#     similarity_cutoff=0.30,
+# )
+
+# # Reranker after retrieval
+# reranker = SentenceTransformerRerank(
+#     model="BAAI/bge-reranker-base",
+#     top_n=3,
+# )
+
+# # Metadata Filtering
+# filters = MetadataFilters(
+#     filters=[
+#         MetadataFilter(
+#             key="category",
+#             value="rag",
+#         ),
+#         MetadataFilter(
+#             key="document_type",
+#             value="policy",
+#         )
+#     ]
+# )
 
 # Dense Vector Index (Load directly from vector store to avoid re-insertion)
-index = VectorStoreIndex.from_vector_store(vector_store)
+# index = VectorStoreIndex.from_vector_store(vector_store)
 
-base_retriever = index.as_retriever(
-    similarity_top_k=5,
-)
+# base_retriever = index.as_retriever(
+#     similarity_top_k=5,
+# )
 
 
-# QueryFusionRetriever Abstraction
-fusion_retriever = QueryFusionRetriever(
-    retrievers=[
-        base_retriever,
-        bm25_retriever,
-    ],
-    llm=Settings.llm,
-    similarity_top_k=5,
-    num_queries=4,
-    mode=FUSION_MODES.RECIPROCAL_RANK,
-    use_async=False,
-    verbose=True,
-)
+# # QueryFusionRetriever Abstraction
+# fusion_retriever = QueryFusionRetriever(
+#     retrievers=[
+#         base_retriever,
+#         bm25_retriever,
+#     ],
+#     llm=Settings.llm,
+#     similarity_top_k=5,
+#     num_queries=4,
+#     mode=FUSION_MODES.RECIPROCAL_RANK,
+#     use_async=False,
+#     verbose=True,
+# )
 
 query = "How can RAG improves Enterprise AI applications?"
 
 
-query_engine = RetrieverQueryEngine.from_args(
-    retriever=fusion_retriever,
-    node_postprocessors=[
-        # similarity_filter,
-        reranker,
-    ],
-)
+# query_engine = RetrieverQueryEngine.from_args(
+#     retriever=fusion_retriever,
+#     node_postprocessors=[
+#         # similarity_filter,
+#         reranker,
+#     ],
+# )
 
 
-response = query_engine.query(
-    query
-)
+# response = query_engine.query(
+#     query
+# )
 
-print("\nAnswer:")
-print(response)
+# print("\nAnswer:")
+# print(response)
 
 # for source in response.source_nodes:
 #     print( 
