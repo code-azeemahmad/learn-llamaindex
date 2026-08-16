@@ -1,7 +1,7 @@
 # learn-llamaindex\main.py
 import qdrant_client
 from bm25_index import BM25Index
-from ingestion.pipeline import create_ingestion_pipeline
+from ingestion.pipeline import create_ingestion_pipeline, persist_pipeline_state
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
@@ -35,6 +35,10 @@ Settings.embed_model = OllamaEmbedding(
 )
 
 documents = SimpleDirectoryReader("data").load_data()
+for doc in documents:
+    # Ensuring stable document identity across runs
+    if "file_name" in doc.metadata:
+        doc.doc_id = doc.metadata["file_name"]
 print(f"Loaded documents: {len(documents)}")
 
 client = qdrant_client.QdrantClient(
@@ -47,17 +51,18 @@ vector_store = QdrantVectorStore(
     collection_name="llamaindex_rag",
 )
 
-pipeline = create_ingestion_pipeline(
-    vector_store=vector_store
-)
-
 storage_context = StorageContext.from_defaults(
     vector_store=vector_store,
 )
 
-
+pipeline = create_ingestion_pipeline(
+    vector_store=vector_store
+)
 nodes = pipeline.run(documents=documents)
 print(f"Number of nodes: {len(nodes)}")
+
+# Persist the cache and docstore to disk
+persist_pipeline_state(pipeline)
 
 
 for i, node in enumerate(nodes):    # The hash is important because it provides an identity/fingerprint associated with the node's content.
