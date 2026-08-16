@@ -10,6 +10,9 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
+from llama_index.postprocessor.sbert_rerank import (
+    SentenceTransformerRerank,
+)
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
 # LLM
@@ -55,6 +58,16 @@ storage_context = StorageContext.from_defaults(
     vector_store=vector_store,
 )
 
+similarity_filter = SimilarityPostprocessor(
+    similarity_cutoff=0.60,
+)
+
+# Reranker after retrieval
+reranker = SentenceTransformerRerank(
+    model="BAAI/bge-reranker-base",
+    top_n=3,
+)
+
 # Build index
 index = VectorStoreIndex(
     nodes, 
@@ -65,72 +78,47 @@ retriever = index.as_retriever(
     similarity_top_k=5
 )
 
-# nodes = retriever.retrieve(
-#     "What is Retrieval-Augmented Generation?"
-# )
+query = "What is Retrieval-Augmented Generation?"
+retrieved_nodes = retriever.retrieve(query)
 
-# print("\nBefore filtering:")
+print("\n===== BEFORE RERANKING =====")
+for i, node in enumerate(retrieved_nodes):
+    print(f"\n{i}")
+    print("Score:", node.score)
+    print("Text:", node.node.text[:300])
 
-# for item in nodes:
-#     print(
-#         f"Score: {item.score:.4f}"
-#     )
-
-# postprocessor = SimilarityPostprocessor(
-#     similarity_cutoff=0.60,
-# )
-
-# filtered_nodes = postprocessor.postprocess_nodes(
-#     nodes
-# )
-
-# print("\nAfter filtering:")
-
-# for item in filtered_nodes:
-#     print(
-#         f"Score: {item.score:.4f}"
-#     )
-
-similarity_filter = SimilarityPostprocessor(
-    similarity_cutoff=0.750,
+reranked_nodes = reranker.postprocess_nodes(
+    retrieved_nodes,
+    query_str=query,
 )
 
+print("\n===== AFTER RERANKING =====")
+for i, node in enumerate(reranked_nodes):
+    print(f"\n{i}")
+    print("Score:", node.score)
+    print("Text:", node.node.text[:300])
+
+
+
 query_engine = index.as_query_engine(
-    similarity_top_k=3,
-    SimilarityPostprocessor=[
+    similarity_top_k=20,
+    node_postprocessors=[
         similarity_filter,
+        reranker,
     ]
 )
 
 # Ask question
 response = query_engine.query(
-    "What role does a vector database play in RAG?"
+    "How does Retrieval Augmented Generation reduce hallucinations?"
 )
 
 print("\nAnswer:")
 print(response)
 
+print("\n=======================================================================")
 for source in response.source_nodes:
-    print(
-        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
+    print( 
         source.score,
-        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
         source.node.text,
-        "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++   ",
     )
-
-"""
-Query
-  ↓
-Retriever
-  ↓
-Top 5 Nodes
-  ↓
-SimilarityPostprocessor
-  ↓
-Nodes >= 0.60
-  ↓
-Response Synthesizer
-  ↓
-LLM
-"""
