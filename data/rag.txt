@@ -137,3 +137,249 @@ HNSW algorithm work?") and verify that relevant chunks from Page 4 are correctly
 with high similarity scores.
 Page 5 of 5
 RAG & Vector Database Sample Document
+
+# Evaluating RAG Systems
+
+Evaluating a RAG pipeline requires measuring both the retrieval stage and the generation stage, since a failure in either can produce a wrong or unhelpful answer.
+
+## Retrieval metrics
+
+- **Recall@k**: whether the relevant document(s) appear anywhere in the top-k retrieved results.
+- **Precision@k**: what fraction of the top-k retrieved results are actually relevant.
+- **Mean Reciprocal Rank (MRR)**: rewards retrieving the first relevant result as early as possible in the ranked list.
+- **NDCG (Normalized Discounted Cumulative Gain)**: accounts for the position and graded relevance of multiple relevant results, not just a binary relevant/irrelevant judgment.
+
+## Generation metrics
+
+- **Faithfulness / groundedness**: whether the generated answer is actually supported by the retrieved context, or whether the model hallucinated beyond it.
+- **Answer relevance**: whether the generated answer actually addresses the user's question.
+- **Context relevance**: whether the retrieved chunks were relevant to the question in the first place, independent of what the LLM did with them.
+
+## Common evaluation frameworks
+
+- **RAGAS**: an open-source framework that uses an LLM-as-judge to score faithfulness, answer relevance, and context precision/recall without requiring hand-labeled ground truth for every query.
+- **TruLens**: provides instrumentation and evaluation feedback functions for LLM apps, including RAG-specific triad metrics (context relevance, groundedness, answer relevance).
+- **LangSmith / LlamaIndex evaluation modules**: framework-native evaluation tooling that integrates directly with the retrieval and generation pipeline for tracing and scoring.
+
+## Building a golden dataset
+
+The most reliable evaluation approach is a hand-curated set of representative questions paired with known correct answers and known relevant source documents, which allows both retrieval and generation to be scored against ground truth rather than relying solely on LLM judges.
+
+
+# Embeddings
+
+An embedding is a numerical vector representation of a piece of data — text, an image, audio, or other content — produced by a neural network so that semantically similar items end up close together in vector space, typically measured by cosine similarity or dot product.
+
+## How text embeddings work
+
+An embedding model (e.g., OpenAI's text-embedding-3, Cohere embed, BGE, or E5) takes a string of text and outputs a fixed-length vector, commonly between 384 and 3072 dimensions. The model is trained so that sentences with similar meaning — even if they use different words — map to nearby points. For example, "How do I reset my password?" and "I forgot my login credentials" should have high cosine similarity despite sharing few exact words.
+
+## Key properties
+
+- **Dimensionality**: higher dimensions can capture more nuance but cost more storage and compute.
+- **Distance metric**: cosine similarity is most common; some models are tuned for dot product or Euclidean distance instead.
+- **Symmetric vs. asymmetric models**: some embedding models are optimized differently for queries versus documents (asymmetric search), which matters for RAG since a short question is being matched against longer passages.
+- **Domain fit**: general-purpose embeddings (trained on broad web text) often underperform domain-tuned embeddings for specialized fields like law, medicine, or code.
+
+## Chunking and embeddings
+
+Because embedding models have a maximum input length, source documents must be split into chunks before embedding. Chunk size is a critical tuning parameter: too small and chunks lose context; too large and the embedding becomes a diluted "average" of many ideas, hurting retrieval precision. Overlapping chunks (e.g., 20% overlap between consecutive chunks) is a common mitigation.
+
+## Fine-tuning embeddings
+
+For high-stakes RAG applications, teams sometimes fine-tune embedding models on labeled query-passage pairs from their own domain, which can meaningfully improve retrieval recall compared to off-the-shelf models.
+
+
+# Vector Databases
+
+A vector database is a data store purpose-built to index, store, and search high-dimensional vectors (embeddings) efficiently, typically returning the top-k nearest neighbors to a query vector in milliseconds even across millions or billions of records.
+
+## Why not just use brute force?
+
+Comparing a query vector against every stored vector (brute-force / exact k-nearest-neighbor search) is accurate but scales linearly with the number of vectors, making it too slow for large corpora. Vector databases instead use approximate nearest neighbor (ANN) algorithms that trade a small amount of accuracy for large speed gains.
+
+## Common indexing algorithms
+
+- **HNSW (Hierarchical Navigable Small World)**: builds a multi-layer graph structure for fast approximate search; used by Weaviate, Qdrant, Milvus, and pgvector.
+- **IVF (Inverted File Index)**: partitions the vector space into clusters and searches only the most relevant clusters.
+- **Product Quantization (PQ)**: compresses vectors to reduce memory footprint at some cost to precision.
+
+## Popular vector database options
+
+- **Pinecone**: fully managed, cloud-native, popular for production RAG apps.
+- **Weaviate**: open-source, supports hybrid search and built-in modules for various embedding providers.
+- **Qdrant**: open-source, written in Rust, known for performance and filtering support.
+- **Milvus**: open-source, designed for large-scale deployments.
+- **Chroma**: lightweight, developer-friendly, popular for local prototyping.
+- **pgvector**: a PostgreSQL extension that adds vector search to a relational database, useful when teams want to avoid a separate specialized store.
+
+## Metadata filtering
+
+Most vector databases support attaching metadata (e.g., document source, date, author, access permissions) to each vector and filtering search results by that metadata — essential for multi-tenant RAG systems or applications requiring access control.
+
+
+# Hybrid Search
+
+Hybrid search combines dense vector (semantic) search with traditional sparse lexical search — most often BM25 — to retrieve relevant documents. The two approaches have complementary strengths, and combining them typically outperforms either alone.
+
+## Why combine them?
+
+Dense embedding search excels at matching meaning: a query like "how to fix a slow laptop" can retrieve a document about "improving computer performance" even without shared vocabulary. But dense search can struggle with exact-match needs — product SKUs, error codes, proper nouns, acronyms, or rare terms that the embedding model wasn't trained to distinguish well.
+
+Sparse lexical search (BM25, TF-IDF) is the opposite: it excels at exact keyword matching but has no notion of meaning, so it misses paraphrases and synonyms.
+
+## Fusion methods
+
+- **Reciprocal Rank Fusion (RRF)**: combines the ranked result lists from both methods by summing reciprocal ranks, without needing to normalize raw scores — a simple and widely used approach.
+- **Weighted score combination**: normalize both scores to a common scale and combine with a tunable weight (alpha) that controls the balance between semantic and lexical relevance.
+- **Cascade retrieval**: run one method first, then use the other to filter or rerank a smaller candidate set.
+
+## When hybrid search matters most
+
+Hybrid search is especially valuable for domains with lots of specific identifiers — legal case numbers, medical codes, part numbers, API function names, or internal jargon — where a pure embedding search might retrieve semantically "close" but factually wrong results.
+
+Most modern vector databases (Weaviate, Qdrant, Elasticsearch, OpenSearch) offer native hybrid search support, removing the need to run two separate systems.
+
+
+# Reranking
+
+Reranking is a second-stage retrieval step that re-scores an initial set of candidate documents (e.g., the top 50 or 100 retrieved by vector or hybrid search) using a more precise — but more computationally expensive — model, then reorders them so the most relevant results rise to the top before being passed to the LLM.
+
+## Why a second stage is needed
+
+Initial retrieval (dense or hybrid search) is optimized for speed across a huge corpus, using bi-encoders that embed queries and documents independently and compare them with a simple similarity metric. This is fast but less precise, because the query and document never actually "see" each other during scoring.
+
+Rerankers typically use a **cross-encoder**: the query and each candidate document are fed into the model together, allowing it to directly model the interaction between them. This produces much more accurate relevance scores, but is too slow to run against millions of documents — hence the two-stage design: cheap broad retrieval, then expensive precise reranking on a small candidate set.
+
+## Common reranking models
+
+- **Cohere Rerank**: a widely used managed reranking API.
+- **BGE reranker / Jina Reranker**: open-source cross-encoder models.
+- **Cross-encoder models from sentence-transformers** (e.g., ms-marco-MiniLM variants).
+- **LLM-as-reranker**: prompting an LLM directly to score or rank candidate passages, which is flexible but slower and costlier.
+
+## Impact on RAG quality
+
+Reranking is often the single highest-leverage addition to a basic RAG pipeline. Even a mediocre first-stage retriever combined with a strong reranker can outperform a great first-stage retriever with no reranking, because the final context passed to the LLM is what most directly determines answer quality.
+
+
+# Query Rewriting
+
+Query rewriting is the process of transforming a user's raw input into one or more queries better suited for retrieval, applied before the embedding and search steps of a RAG pipeline.
+
+## Why raw queries are often bad for retrieval
+
+Users write conversationally, ambiguously, or with pronouns and missing context ("what about the second one?"). A raw user message dropped directly into a retriever often performs worse than a cleaned-up, self-contained version of the same question.
+
+## Common query rewriting techniques
+
+- **Query expansion**: adding synonyms or related terms to increase recall.
+- **Query decomposition**: splitting a complex multi-part question into several simpler sub-queries, retrieving for each, and combining the results — useful for questions like "compare the pricing and support policies of vendor A and vendor B."
+- **Conversational rewriting**: using chat history to resolve references (e.g., turning "what about the second one?" into "what is the pricing for Vendor B?").
+- **HyDE (Hypothetical Document Embeddings)**: instead of embedding the user's question directly, an LLM first generates a hypothetical answer to the question, and that hypothetical answer is embedded and used for retrieval — since answer-shaped text often matches document-shaped text better than question-shaped text.
+- **Step-back prompting**: generating a more general/abstract version of the question to retrieve broader context before answering the specific question.
+
+## Trade-offs
+
+Query rewriting adds an extra LLM call (latency and cost) before retrieval even begins, so it's typically reserved for cases where retrieval quality is a known bottleneck — long conversational sessions, complex multi-hop questions, or domains with heavy jargon mismatch between how users ask and how documents are written.
+
+
+# Query Rewriting
+
+Query rewriting is the process of transforming a user's raw input into one or more queries better suited for retrieval, applied before the embedding and search steps of a RAG pipeline.
+
+## Why raw queries are often bad for retrieval
+
+Users write conversationally, ambiguously, or with pronouns and missing context ("what about the second one?"). A raw user message dropped directly into a retriever often performs worse than a cleaned-up, self-contained version of the same question.
+
+## Common query rewriting techniques
+
+- **Query expansion**: adding synonyms or related terms to increase recall.
+- **Query decomposition**: splitting a complex multi-part question into several simpler sub-queries, retrieving for each, and combining the results — useful for questions like "compare the pricing and support policies of vendor A and vendor B."
+- **Conversational rewriting**: using chat history to resolve references (e.g., turning "what about the second one?" into "what is the pricing for Vendor B?").
+- **HyDE (Hypothetical Document Embeddings)**: instead of embedding the user's question directly, an LLM first generates a hypothetical answer to the question, and that hypothetical answer is embedded and used for retrieval — since answer-shaped text often matches document-shaped text better than question-shaped text.
+- **Step-back prompting**: generating a more general/abstract version of the question to retrieve broader context before answering the specific question.
+
+## Trade-offs
+
+Query rewriting adds an extra LLM call (latency and cost) before retrieval even begins, so it's typically reserved for cases where retrieval quality is a known bottleneck — long conversational sessions, complex multi-hop questions, or domains with heavy jargon mismatch between how users ask and how documents are written.
+
+
+# LlamaIndex
+
+LlamaIndex (formerly GPT Index) is an open-source Python and TypeScript framework for building applications — especially RAG systems — on top of LLMs and custom data sources.
+
+## Core components
+
+- **Data connectors (LlamaHub)**: a large library of loaders for ingesting data from PDFs, Notion, Slack, SQL databases, APIs, and hundreds of other sources.
+- **Node parsers / chunking**: utilities for splitting documents into "nodes" (chunks) using strategies like sentence splitting, semantic chunking, or hierarchical chunking.
+- **Indexes**: structures for organizing nodes for retrieval — including a simple vector store index, a summary index, a tree index, and a keyword table index.
+- **Retrievers**: configurable retrieval strategies, including similarity-based retrieval, hybrid retrieval, and auto-merging retrieval that reconstructs larger context from smaller matched chunks.
+- **Query engines**: the high-level interface that ties retrieval and generation together, handling prompt construction and calling the LLM.
+- **Agents**: support for tool-using agents that can call functions, query multiple indexes, or take multi-step actions.
+
+## Typical usage pattern
+
+```python
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+
+documents = SimpleDirectoryReader("data").load_data()
+index = VectorStoreIndex.from_documents(documents)
+query_engine = index.as_query_engine()
+response = query_engine.query("What is hybrid search?")
+print(response)
+```
+
+## LlamaIndex vs. LangChain
+
+LlamaIndex is generally considered more retrieval- and data-indexing-focused, with strong defaults for RAG out of the box, while LangChain positions itself as a broader orchestration framework for chains, agents, and general LLM application logic. Many teams use LlamaIndex for the retrieval layer and LangChain (or a custom orchestrator) for the surrounding application logic, though both frameworks have expanded to cover much of the same ground.
+
+## Integrations
+
+LlamaIndex integrates with most major vector databases (Pinecone, Weaviate, Qdrant, Chroma, pgvector), embedding providers (OpenAI, Cohere, HuggingFace), and rerankers (Cohere Rerank, sentence-transformers cross-encoders), making it a common glue layer for assembling a full RAG stack.
+
+
+# Chunking Strategies
+
+Chunking is the process of splitting source documents into smaller pieces before embedding and indexing them for retrieval. It is one of the most underrated levers for RAG quality — poor chunking can undermine even the best embedding model or reranker.
+
+## Common strategies
+
+- **Fixed-size chunking**: split text every N tokens or characters, often with some overlap (e.g., 512 tokens with 50-token overlap). Simple but can cut sentences or ideas in half.
+- **Sentence/paragraph-based chunking**: split along natural language boundaries so chunks stay semantically coherent.
+- **Recursive character splitting**: try splitting on larger boundaries (sections, paragraphs) first, falling back to smaller boundaries (sentences, words) only if a chunk still exceeds the size limit.
+- **Semantic chunking**: use embeddings to detect topic shifts within a document and split at those boundaries rather than at arbitrary length limits.
+- **Hierarchical / parent-child chunking**: index small chunks for precise retrieval matching, but return the larger "parent" chunk (or surrounding context) to the LLM so it has enough context to answer well.
+- **Document-structure-aware chunking**: for structured documents (Markdown, HTML, code), split along headings, functions, or sections rather than raw character counts.
+
+## Trade-offs
+
+Smaller chunks improve retrieval precision (less irrelevant text per chunk) but risk losing context needed to fully answer a question. Larger chunks preserve context but dilute the embedding and can pull in irrelevant text alongside the relevant part. Most production systems land somewhere between 200–800 tokens per chunk, tuned empirically against a labeled evaluation set.
+
+
+# Evaluating RAG Systems
+
+Evaluating a RAG pipeline requires measuring both the retrieval stage and the generation stage, since a failure in either can produce a wrong or unhelpful answer.
+
+## Retrieval metrics
+
+- **Recall@k**: whether the relevant document(s) appear anywhere in the top-k retrieved results.
+- **Precision@k**: what fraction of the top-k retrieved results are actually relevant.
+- **Mean Reciprocal Rank (MRR)**: rewards retrieving the first relevant result as early as possible in the ranked list.
+- **NDCG (Normalized Discounted Cumulative Gain)**: accounts for the position and graded relevance of multiple relevant results, not just a binary relevant/irrelevant judgment.
+
+## Generation metrics
+
+- **Faithfulness / groundedness**: whether the generated answer is actually supported by the retrieved context, or whether the model hallucinated beyond it.
+- **Answer relevance**: whether the generated answer actually addresses the user's question.
+- **Context relevance**: whether the retrieved chunks were relevant to the question in the first place, independent of what the LLM did with them.
+
+## Common evaluation frameworks
+
+- **RAGAS**: an open-source framework that uses an LLM-as-judge to score faithfulness, answer relevance, and context precision/recall without requiring hand-labeled ground truth for every query.
+- **TruLens**: provides instrumentation and evaluation feedback functions for LLM apps, including RAG-specific triad metrics (context relevance, groundedness, answer relevance).
+- **LangSmith / LlamaIndex evaluation modules**: framework-native evaluation tooling that integrates directly with the retrieval and generation pipeline for tracing and scoring.
+
+## Building a golden dataset
+
+The most reliable evaluation approach is a hand-curated set of representative questions paired with known correct answers and known relevant source documents, which allows both retrieval and generation to be scored against ground truth rather than relying solely on LLM judges.

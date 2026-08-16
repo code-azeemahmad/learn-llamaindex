@@ -5,25 +5,18 @@ class QueryRewriter:
     def __init__(self, llm: Ollama):
         self.llm = llm
 
-    def rewrite(
-        self,
-        query: str,
-        conversation: str,
-    ) -> str:
-
+    def rewrite(self, query: str, num_queries: int = 3) -> list[str]:
         prompt = f"""
-Rewrite the user's query into a standalone
-search query.
+        Generate {num_queries} different search queries for the user's question according to the terminologies mentioned in the query.
 
-Conversation:
-{conversation}
+        User query:
+        {query}
 
-User query:
-{query}
-
-Return only the rewritten search query.
-"""
-
+        Return only the queries, one per line. No numbering, no extra text.
+        """
         response = self.llm.complete(prompt)
 
-        return str(response).strip()
+        queries = [
+            line.strip() for line in str(response).strip().split("\n") if line.strip()
+        ]
+        return queries
