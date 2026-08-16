@@ -1,7 +1,7 @@
 # learn-llamaindex\main.py
 import qdrant_client
+from bm25_index import BM25Index
 from llama_index.core import (
-    # QueryBundle,  
     Settings,
     SimpleDirectoryReader,
     StorageContext,
@@ -23,8 +23,7 @@ from llama_index.postprocessor.sbert_rerank import (
     SentenceTransformerRerank,
 )
 from llama_index.vector_stores.qdrant import QdrantVectorStore
-
-# from query_rewriter import QueryRewriter
+from retrievers.bm25_retriever import BM25Retriever
 
 llm = Settings.llm = Ollama(
     model="gemma4:26b",
@@ -50,6 +49,31 @@ pipeline = IngestionPipeline(
 
 nodes = pipeline.run(documents=documents)
 print(f"Number of nodes: {len(nodes)}")
+
+
+bm25_index = BM25Index()
+
+bm25_index.add_documents(nodes)
+
+bm25_retriever = BM25Retriever(
+    bm25_index=bm25_index,
+    similarity_top_k=5,
+)
+
+
+# bm25_nodes = bm25_retriever.retrieve(
+#     "What is Retrieval-Augmented Generation?"
+# )
+
+# print("\n========== BM25 RETRIEVER ==========")
+
+# for i, node_with_score in enumerate(bm25_nodes):
+
+#     print(f"\n--- Node {i} ---")
+#     print("Score:", node_with_score.score)
+#     print("Text:")
+#     print(node_with_score.node.text)
+
 
 client = qdrant_client.QdrantClient(
     host="localhost",
@@ -89,24 +113,9 @@ filters = MetadataFilters(
     ]
 )
 
-
-
-'''
-original_query="How can RAG improve enterprise AI applications?"
-rewriter = QueryRewriter(llm)
-
-queries = rewriter.rewrite(
-    original_query,
-)
-
-print("Generated queries:")
-for q in queries:
-    print(" -", q)
-'''
-
 # Build index
 index = VectorStoreIndex(
-    nodes, 
+    nodes,
     storage_context=storage_context
 )
 
@@ -115,78 +124,28 @@ base_retriever = index.as_retriever(
 )
 
 
-'''Manual Version
-# Step 1: retrieve for each query separately
-nodes_lists = []
-for q in queries:
-    results = retriever.retrieve(q)
-    print(f"\nQuery: {q}")
-    for n in results:
-        print(round(n.score, 4), n.node.text[:100])
-    nodes_lists.append(results)
-
-
-# Step 2: Reciprocal Rank Fusion
-def reciprocal_rank_fusion(nodes_lists, k: int = 60):
-    scores = {}
-    node_lookup = {}
-
-    for results in nodes_lists:
-        for rank, node in enumerate(results):
-            node_id = node.node.node_id
-            node_lookup[node_id] = node
-            scores[node_id] = scores.get(node_id, 0) + 1 / (k + rank + 1)
-
-    fused = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    return [(node_lookup[nid], score) for nid, score in fused]
-
-
-fused_nodes = reciprocal_rank_fusion(nodes_lists)
-
-print("\n--- Fused results (RRF) ---")
-for node, score in fused_nodes:
-    print(round(score, 4), node.node.text[:100])
-
-fused_nodes = [n for n, _ in fused_nodes]
-
-reranked_nodes = reranker.postprocess_nodes(
-    fused_nodes,
-    query_bundle=QueryBundle(query_str=original_query),
-)
-
-for n in reranked_nodes:
-    print(n.score, n.node.text[:100])
-'''
-
-
 # QueryFusionRetriever Abstraction
 fusion_retriever = QueryFusionRetriever(
-    retrievers=[base_retriever],
+    retrievers=[
+        base_retriever,
+        bm25_retriever,
+    ],
     llm=Settings.llm,
     similarity_top_k=5,
-    num_queries=3,
+    num_queries=4,
     mode=FUSION_MODES.RECIPROCAL_RANK,
     use_async=False,
     verbose=True,
 )
 
-query = "What is Retrieval-Augmented Generation?"
+query = "How can RAG improves Enterprise AI applications?"
 
-# nodes = fusion_retriever.retrieve(query)    
-
-# print("\n========== FUSED RESULTS ==========")
-
-# for i, node in enumerate(nodes):
-#     print(f"\n--- Node {i} ---")
-#     print("Score:", node.score)
-#     print("Text:")
-#     print(node.node.text)
 
 query_engine = RetrieverQueryEngine.from_args(
     retriever=fusion_retriever,
     node_postprocessors=[
-        reranker,
         similarity_filter,
+        reranker,
     ],
 )
 
@@ -203,15 +162,3 @@ print(response)
 #         source.score,
 #         source.node.text,
 #     )
-
-
-"""
-node_postprocessors execute sequentially in a pipeline from left to right (index 0 to index N). The output of postprocessor #1 becomes the input for postprocessor #2.
-"""
-"""node_postprocessors = [
-    reranker,          # 1. Update scores using cross-encoder
-    similarity_filter, # 2. Filter out weak scores
-]"""
-# Scenario A: [similarity_filter, reranker] --> Empty Response
-# Scenario B: [reranker, similarity_filter] --> Gives Answer
-
