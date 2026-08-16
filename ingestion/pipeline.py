@@ -12,6 +12,8 @@ from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.kvstore import SimpleKVStore
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
+from ingestion.transformations import MetadataEnrichmentTransformer
+
 PERSIST_DIR = "./pipeline_storage"
 
 def create_ingestion_pipeline(
@@ -39,9 +41,10 @@ def create_ingestion_pipeline(
                 chunk_size=256,
                 chunk_overlap=20,
             ),
-            Settings.embed_model,  # Generates vector embeddings for each node
+            Settings.embed_model,
+            MetadataEnrichmentTransformer(),  # <-- Custom transformation added here
         ],
-        vector_store=vector_store,   # Automatically stores nodes + embeddings in Qdrant
+        vector_store=vector_store,
         docstore=docstore,
         cache=cache,
         docstore_strategy=DocstoreStrategy.UPSERTS,

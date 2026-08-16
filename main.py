@@ -65,11 +65,12 @@ print(f"Number of nodes: {len(nodes)}")
 persist_pipeline_state(pipeline)
 
 
-for i, node in enumerate(nodes):    # The hash is important because it provides an identity/fingerprint associated with the node's content.
-    print(f"\n--- Node {i} ---")
-    print("ID:", node.node_id)
-    print("Hash:", node.hash)
-    print("Text:", node.text[:100])
+# Inspect the metadata of the first processed node
+if nodes:
+    print("\n--- SAMPLE NODE METADATA ---")
+    print("ID:", nodes[0].node_id)
+    print("Hash:", nodes[0].hash)
+    print("Metadata:", nodes[0].metadata)
 
 
 bm25_index = BM25Index()
@@ -93,8 +94,8 @@ reranker = SentenceTransformerRerank(
 filters = MetadataFilters(
     filters=[
         MetadataFilter(
-            key="department",
-            value="engineering",
+            key="category",
+            value="rag",
         ),
         MetadataFilter(
             key="document_type",
