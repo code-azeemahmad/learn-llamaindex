@@ -1,14 +1,13 @@
 # learn-llamaindex\main.py
 import qdrant_client
 from bm25_index import BM25Index
+from ingestion.pipeline import create_ingestion_pipeline
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
     StorageContext,
     VectorStoreIndex,
 )
-from llama_index.core.ingestion import IngestionPipeline
-from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import QueryFusionRetriever
@@ -26,7 +25,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from retrievers.bm25_retriever import BM25Retriever
 
 llm = Settings.llm = Ollama(
-    model="gemma4:26b",
+    model="llama3.1:8b",
     request_timeout=120.0,
 )
 
@@ -38,43 +37,6 @@ Settings.embed_model = OllamaEmbedding(
 documents = SimpleDirectoryReader("data").load_data()
 print(f"Loaded documents: {len(documents)}")
 
-pipeline = IngestionPipeline(
-    transformations=[
-        SentenceSplitter(
-            chunk_size=256,
-            chunk_overlap=20
-        ),
-    ]
-)
-
-nodes = pipeline.run(documents=documents)
-print(f"Number of nodes: {len(nodes)}")
-
-
-bm25_index = BM25Index()
-
-bm25_index.add_documents(nodes)
-
-bm25_retriever = BM25Retriever(
-    bm25_index=bm25_index,
-    similarity_top_k=5,
-)
-
-
-# bm25_nodes = bm25_retriever.retrieve(
-#     "What is Retrieval-Augmented Generation?"
-# )
-
-# print("\n========== BM25 RETRIEVER ==========")
-
-# for i, node_with_score in enumerate(bm25_nodes):
-
-#     print(f"\n--- Node {i} ---")
-#     print("Score:", node_with_score.score)
-#     print("Text:")
-#     print(node_with_score.node.text)
-
-
 client = qdrant_client.QdrantClient(
     host="localhost",
     port=6333
@@ -85,8 +47,31 @@ vector_store = QdrantVectorStore(
     collection_name="llamaindex_rag",
 )
 
+pipeline = create_ingestion_pipeline(
+    vector_store=vector_store
+)
+
 storage_context = StorageContext.from_defaults(
     vector_store=vector_store,
+)
+
+
+nodes = pipeline.run(documents=documents)
+print(f"Number of nodes: {len(nodes)}")
+
+
+for i, node in enumerate(nodes):    # The hash is important because it provides an identity/fingerprint associated with the node's content.
+    print(f"\n--- Node {i} ---")
+    print("ID:", node.node_id)
+    print("Hash:", node.hash)
+    print("Text:", node.text[:100])
+
+
+bm25_index = BM25Index()
+bm25_index.add_documents(nodes)
+bm25_retriever = BM25Retriever(
+    bm25_index=bm25_index,
+    similarity_top_k=5,
 )
 
 similarity_filter = SimilarityPostprocessor(
@@ -113,11 +98,8 @@ filters = MetadataFilters(
     ]
 )
 
-# Build index
-index = VectorStoreIndex(
-    nodes,
-    storage_context=storage_context
-)
+# Dense Vector Index (Load directly from vector store to avoid re-insertion)
+index = VectorStoreIndex.from_vector_store(vector_store)
 
 base_retriever = index.as_retriever(
     similarity_top_k=5,
@@ -144,7 +126,7 @@ query = "How can RAG improves Enterprise AI applications?"
 query_engine = RetrieverQueryEngine.from_args(
     retriever=fusion_retriever,
     node_postprocessors=[
-        similarity_filter,
+        # similarity_filter,
         reranker,
     ],
 )
