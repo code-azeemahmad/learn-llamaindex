@@ -8,6 +8,10 @@ from llama_index.core import (
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.core.vector_stores import (
+    MetadataFilter,
+    MetadataFilters,
+)
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.postprocessor.sbert_rerank import (
@@ -68,6 +72,20 @@ reranker = SentenceTransformerRerank(
     top_n=3,
 )
 
+# Metadata Filtering
+filters = MetadataFilters(
+    filters=[
+        MetadataFilter(
+            key="department",
+            value="engineering",
+        ),
+        MetadataFilter(
+            key="document_type",
+            value="policy",
+        )
+    ]
+)
+
 # Build index
 index = VectorStoreIndex(
     nodes, 
@@ -75,33 +93,22 @@ index = VectorStoreIndex(
 )
 
 retriever = index.as_retriever(
-    similarity_top_k=5
+    similarity_top_k=5,
+    filters=filters,
 )
 
-query = "What is Retrieval-Augmented Generation?"
-retrieved_nodes = retriever.retrieve(query)
-
-print("\n===== BEFORE RERANKING =====")
-for i, node in enumerate(retrieved_nodes):
-    print(f"\n{i}")
-    print("Score:", node.score)
-    print("Text:", node.node.text[:300])
-
-reranked_nodes = reranker.postprocess_nodes(
-    retrieved_nodes,
-    query_str=query,
+nodes = retriever.retrieve(
+    "What is the deployment policy?"
 )
 
-print("\n===== AFTER RERANKING =====")
-for i, node in enumerate(reranked_nodes):
-    print(f"\n{i}")
-    print("Score:", node.score)
-    print("Text:", node.node.text[:300])
-
-
+for node in nodes:
+    print(node.node.metadata)
+    print(node.score)
+    print(node.node.text)
 
 query_engine = index.as_query_engine(
     similarity_top_k=20,
+    filters=filters,
     node_postprocessors=[
         similarity_filter,
         reranker,
@@ -116,9 +123,8 @@ response = query_engine.query(
 print("\nAnswer:")
 print(response)
 
-print("\n=======================================================================")
-for source in response.source_nodes:
-    print( 
-        source.score,
-        source.node.text,
-    )
+# for source in response.source_nodes:
+#     print( 
+#         source.score,
+#         source.node.text,
+#     )
