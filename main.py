@@ -18,9 +18,10 @@ from llama_index.postprocessor.sbert_rerank import (
     SentenceTransformerRerank,
 )
 from llama_index.vector_stores.qdrant import QdrantVectorStore
+from query_rewriter import QueryRewriter
 
 # LLM
-Settings.llm = Ollama(
+llm = Settings.llm = Ollama(
     model="gemma4:26b",
     request_timeout=120.0,
 )
@@ -86,6 +87,21 @@ filters = MetadataFilters(
     ]
 )
 
+rewriter = QueryRewriter(llm)
+
+rewritten_query = rewriter.rewrite(
+    query="What are its advantages?",
+    conversation="""
+User: What is Retrieval-Augmented Generation?
+
+Assistant: RAG combines information retrieval
+with language generation.
+""",
+)
+
+print("Rewritten query:")
+print(rewritten_query)
+
 # Build index
 index = VectorStoreIndex(
     nodes, 
@@ -94,21 +110,19 @@ index = VectorStoreIndex(
 
 retriever = index.as_retriever(
     similarity_top_k=5,
-    filters=filters,
 )
 
 nodes = retriever.retrieve(
-    "What is the deployment policy?"
+    rewritten_query
 )
 
 for node in nodes:
-    print(node.node.metadata)
     print(node.score)
     print(node.node.text)
 
+
 query_engine = index.as_query_engine(
     similarity_top_k=20,
-    filters=filters,
     node_postprocessors=[
         similarity_filter,
         reranker,
@@ -117,7 +131,7 @@ query_engine = index.as_query_engine(
 
 # Ask question
 response = query_engine.query(
-    "How does Retrieval Augmented Generation reduce hallucinations?"
+    rewritten_query
 )
 
 print("\nAnswer:")
