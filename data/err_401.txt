@@ -1,0 +1,468 @@
+401 Unauthorized
+The HTTP 401 Unauthorized client error response status code indicates that a request was not successful because it lacks valid authentication credentials for the requested resource. This status code is sent with an HTTP WWW-Authenticate response header that contains information on the authentication scheme the server expects the client to include to make the request successfully.
+
+A 401 Unauthorized is similar to the 403 Forbidden response, except that a 403 is returned when a request contains valid credentials, but the client does not have permissions to perform a certain action.
+
+In this article
+Status
+Examples
+Specifications
+See also
+Status
+http
+
+Copy
+401 Unauthorized
+Examples
+Unauthorized request to a protected API
+The following GET request is made to a URL www.example.com/admin that expects credentials in an Authorization header:
+
+http
+
+Copy
+GET /admin HTTP/1.1
+Host: example.com
+The server responds with a 401 message and a WWW-Authenticate header indicating that the request must be authenticated and that Bearer auth (an access token) is the permitted authentication scheme:
+
+http
+
+Copy
+HTTP/1.1 401 Unauthorized
+Date: Tue, 02 Jul 2024 12:18:47 GMT
+WWW-Authenticate: Bearer
+Specifications
+Specification
+HTTP Semantics
+# status.401
+See also
+HTTP response status codes
+HTTP authentication
+Challenge
+WWW-Authenticate
+Authorization
+Proxy-Authorization
+Proxy-Authenticate
+403, 407
+Help improve MDN
+
+Was this page helpful to you?
+
+Yes
+
+No
+Learn how to contribute
+This page was last modified on Jun 22, 2026 by MDN contributors.
+
+View this page on GitHub • Report a problem with this content
+
+
+Error 401
+Last updated
+Apr 23, 2026
+
+Copy as Markdown
+View as Markdown
+Agent setup
+401 Unauthorized
+This error indicates that the request was not sent with the proper authentication credentials. The server requires authentication to process the request.
+
+For more details, refer to RFC 7235 ↗.
+
+Common use cases
+A 401 Unauthorized error occurs when the client fails to provide valid authentication credentials. The server responds with at least one challenge in the form of a WWW-Authenticate header field, as outlined in section 4.1 ↗.
+
+If the client resends the request with the same credentials and the challenge remains unchanged, the server may return an entity to assist the client in identifying the correct credentials needed.
+
+Cloudflare-specific information
+When encountering a 401 error while using the Cloudflare API, ensure that you are providing the correct authentication credentials (for example, API tokens or keys). Double-check that the credentials are active and properly formatted. If the error persists, refer to the WWW-Authenticate header in the response for guidance on resolving the issue.
+
+HTTP 401 Unauthorized: What It Means and How to Fix It
+A 401 Unauthorized error means the request lacks valid authentication. Here is what causes it, how it differs from 403, and how to fix it for OAuth, JWT, Basic Auth, and API key flows.
+
+Last updated: May 6, 2026
+HTTP 401 Unauthorized: What It Means and How to Fix It
+An HTTP 401 Unauthorized error means the request reached the server but was rejected because it lacked valid authentication credentials. The server knows what it needs; the client has not provided it — or has provided something invalid or expired.
+
+tl;dr — A 401 Unauthorized means the server requires authentication and either none was provided or it was invalid (expired token, wrong API key, malformed Bearer header). Unlike 403 (which means “you are authenticated but not allowed”), 401 means “log in and try again.” The server must also send a WWW-Authenticate header telling the client exactly how to authenticate.
+
+For developers building or consuming APIs, 401 is the most authentication-specific HTTP status code. It sits at the centre of every OAuth 2.0 flow, JWT verification pipeline, and API key scheme. Getting it right — both when you receive it and when you send it — is fundamental to building secure, well-behaved applications.
+
+💡 Debugging a rejected token right now? Paste it into the free JWT & JWE Debugger to decode the header and payload in your browser — an expired exp, a wrong aud, or an unknown kid shows up immediately.
+
+What Is HTTP 401 Unauthorized?
+The 401 status code is defined in RFC 9110:
+
+"The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource. The server generating a 401 response MUST send a WWW-Authenticate header field containing at least one challenge applicable to the target resource."
+
+Two things stand out in that definition.
+
+First, the word “Unauthorized” is a misnomer. The HTTP specification uses “Unauthorized” to mean unauthenticated: the server does not know who you are. Authorization (whether an authenticated user may perform an action) is handled by 403. This naming confusion is baked into the standard and is a frequent source of bugs in API design.
+
+Second, a 401 must be accompanied by a WWW-Authenticate header. This header is not optional. It tells the client which authentication scheme to use — Bearer, Basic, Digest, or another scheme — and may carry additional information about exactly what went wrong. Many articles and some libraries ignore this header; they should not.
+
+401 vs 403: The Critical Difference
+The most common mistake in API design is returning the wrong code when authentication fails. Here is the clearest way to think about the distinction:
+
+Status	Means	Will sending credentials help?	What the server expects you to do
+401 Unauthorized	No valid identity — the server does not know who you are	Yes — authenticate and retry	Include a valid Authorization header (Bearer token, API key, Basic Auth)
+403 Forbidden	Identity is known, but access is denied for this resource	No — different credentials will not help	Request elevated permissions, or accept that the resource is off-limits
+RFC 9110 is explicit on this point: a 401 is appropriate when the request “lacks valid authentication credentials.” A 403 is appropriate when “the server understood the request but refuses to fulfil it” regardless of authentication state. For a deeper look at the conceptual split, see Authentication vs Authorization, and for a full decision guide on which code your API should return, see HTTP 401 vs 403.
+
+The most common bug: an API returns 403 when the Authorization header is entirely missing. This misleads clients into thinking they are authenticated but forbidden, rather than unauthenticated. A missing Authorization header is always a 401.
+
+The WWW-Authenticate Header (RFC 7235)
+Most articles skip this header. They should not — it is the mechanism by which the server communicates precisely what authentication the client needs to provide or what went wrong.
+
+For OAuth 2.0 Bearer tokens, a well-formed 401 response looks like this:
+
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Bearer realm="api.example.com", error="invalid_token", error_description="The access token expired"
+The parts:
+
+realm — identifies the protection space. Usually your API domain. Clients use this to cache credentials per-realm.
+error — a machine-readable code. RFC 6750 §3.1 defines three valid values for Bearer tokens:
+invalid_request — the request is malformed (missing Authorization header, wrong format). Return 401.
+invalid_token — the token is expired, revoked, or invalid. Return 401.
+insufficient_scope — the token is valid but lacks the scope required for this resource. Return 403, not 401.
+error_description — a human-readable message for debugging.
+scope — included when error=insufficient_scope. Lists the scopes required to access the resource, so the client can request a new token with the correct scopes.
+The insufficient_scope case is important: if a valid, authenticated user’s token simply does not have the right scope for an endpoint, you should return 403, not 401. Returning 401 here would incorrectly tell the client “get new credentials” when what it actually needs is a token with broader scopes.
+
+For Basic Auth, the header is simpler:
+
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="My API"
+Common Causes of HTTP 401 Unauthorized
+1. Missing Authorization header
+The request was sent with no credentials at all. This is the baseline case — always return 401, never 403.
+
+2. Expired JWT or access token
+The token’s exp claim is in the past. The server has verified the signature but the token is no longer valid. The fix is a token refresh (see below).
+
+3. Malformed Bearer header
+Header formatting mistakes are a common source of silent 401s. The correct format is:
+
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+Common mistakes: Bearer: eyJ... (wrong format — the header name is Authorization, not Bearer), a trailing space after “Bearer”, or omitting the space entirely. The Authorization header name and the Bearer scheme token are both case-insensitive per RFC 7230 and RFC 7235, but treat them as case-sensitive in practice: some older or non-compliant servers and middleware do enforce exact casing.
+
+4. Wrong credentials for Basic Auth
+The Authorization: Basic <base64> value encodes username:password. Mistakes include: wrong password, wrong encoding (not base64), or including a newline in the encoded value.
+
+5. API key invalidated or regenerated
+The key was valid at one time but has since been rotated, revoked, or changed in the provider’s dashboard. The client is still using the old key.
+
+6. Token revoked server-side
+With refresh token rotation, when a new access token is issued the previous one may be invalidated. If a client replays a cached access token that has been revoked, the server returns 401 even though the token’s exp has not yet passed.
+
+7. Clock skew between client and auth server
+JWT verification compares the exp and iat claims to the current time. If the server’s clock and the client’s clock (or the auth server’s clock) differ by more than a few seconds, a freshly issued token may appear to be expired or not yet valid. This is particularly subtle in containerised environments where system clocks drift.
+
+8. Wrong aud claim
+The token’s aud (audience) claim must match what the resource server expects. (For a full list of JWT attack vectors beyond 401s, see JWT Security Best Practices.) If the access token was issued for api.service-a.com but the request hits api.service-b.com, the resource server must reject it — otherwise tokens are portable across services in ways the auth server did not intend.
+
+9. Signing key mismatch after rotation
+Auth servers periodically rotate their signing keys. If the resource server caches the old JWK set and the auth server has rotated to a new key pair, tokens signed with the new private key will fail signature verification, producing a 401. The resource server should re-fetch the JWKS endpoint when it encounters an unknown kid claim in the token header.
+
+How to Diagnose a 401 Unauthorized
+Work through these steps in order.
+
+Step 1: Read the WWW-Authenticate header
+The response header tells you exactly which check failed:
+
+curl -v https://api.example.com/endpoint \
+  -H "Authorization: Bearer your-token-here" 2>&1 | grep -i "www-authenticate"
+An error=invalid_token points to expiry or revocation. An error=invalid_request points to a malformed header.
+
+Step 2: Decode the JWT
+Inspect the token’s claims — especially exp, aud, iss, and kid:
+
+# Print the JWT payload (no verification — for debugging only)
+echo "your.jwt.token" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
+Or use the Authgear JWT Debugger to decode and inspect claims in a browser.
+
+Check the exp claim against the current Unix time:
+
+date +%s   # current Unix timestamp
+# Compare to the exp value in the JWT payload
+Step 3: Reproduce with curl -v
+curl -v https://api.example.com/protected/resource \
+  -H "Authorization: Bearer your-token-here"
+The -v flag shows the full request headers you are sending and the full response headers you receive. This surfaces header-formatting mistakes and confirms which layer (CDN, proxy, or origin) is returning the 401.
+
+Step 4: Check auth server logs
+If you control the auth server — whether Authgear, Auth0, Okta, or your own — check its logs. Auth servers log the specific rejection reason: expired token, unknown key ID, audience mismatch, or revoked token. The resource server’s 401 response often gives less detail than the auth server’s own logs.
+
+How to Fix HTTP 401 Unauthorized
+Fix: Expired JWT — Use a Refresh Token
+For background on how JWTs are structured, signed, and verified, see JWT Authentication.
+
+First, detect expiry before making the request:
+
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Check exp with a 30-second buffer to pre-empt imminent expiry
+    return payload.exp < (Date.now() / 1000) + 30;
+  } catch {
+    return true;
+  }
+}
+Then refresh proactively, or catch the 401 and refresh reactively:
+
+async function refreshAccessToken(refreshToken) {
+  const response = await fetch('https://accounts.example.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: 'YOUR_CLIENT_ID',
+    }),
+  });
+  if (!response.ok) {
+    throw new Error('Refresh failed — user must re-authenticate');
+  }
+  const { access_token, refresh_token } = await response.json();
+  return { access_token, refresh_token };
+}
+Note: only invalid_token errors are fixable by refreshing. If the WWW-Authenticate header says error=invalid_request (malformed header) or the refresh token itself is revoked, a full re-authentication is required.
+
+Fix: Missing or Malformed Bearer Header
+The correct format is a single space between “Bearer” and the token. The header name and scheme token are case-insensitive per the HTTP spec, but use the canonical casing shown below for maximum compatibility:
+
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImV4cCI6MTc0NjUwMDAwMH0.signature
+In code:
+
+const response = await fetch('/api/resource', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  },
+});
+A common mistake in fetch is concatenating strings without the space: `Bearer${token}` instead of `Bearer ${token}`.
+
+Fix: API Key Issues
+API key 401s are almost always one of three things: the wrong key was copied, the key was regenerated in the dashboard and the old one invalidated, or the key is being sent in the wrong header or query parameter.
+
+Check which header or param the API expects. Common patterns:
+
+# Header-based (most common)
+Authorization: Api-Key YOUR_KEY_HERE
+X-API-Key: YOUR_KEY_HERE
+
+# Query parameter (less secure, avoid for sensitive APIs)
+GET /resource?api_key=YOUR_KEY_HERE
+Verify the key against your configuration by printing the first and last 4 characters — a truncated match rules out copy-paste errors without exposing the full key.
+
+Fix: Basic Auth — Wrong Credentials
+Basic Auth encodes username:password as base64. Construct and verify the value:
+
+# Encode credentials
+echo -n "myuser:mypassword" | base64
+# Output: bXl1c2VyOm15cGFzc3dvcmQ=
+
+# Test with curl
+curl -v https://api.example.com/resource \
+  -H "Authorization: Basic bXl1c2VyOm15cGFzc3dvcmQ="
+Watch out for special characters in passwords: @, :, +, and / must be percent-encoded when constructing the URL form, but in the Authorization header you base64-encode the raw user:pass string (no percent-encoding needed).
+
+Fix: Clock Skew
+Add a leeway to your JWT verification. Most JWT libraries support this directly:
+
+// jsonwebtoken (Node.js)
+jwt.verify(token, publicKey, {
+  clockTolerance: 30, // 30-second leeway
+});
+# PyJWT
+import jwt
+payload = jwt.decode(
+    token,
+    public_key,
+    algorithms=['RS256'],
+    leeway=30,  # seconds
+)
+The typical safe value is 5–30 seconds. Beyond 60 seconds you start accepting tokens that should be considered expired.
+
+Also ensure all servers in your infrastructure synchronise time via NTP. On Linux:
+
+timedatectl status | grep "NTP synchronized"
+Fix: Wrong JWKS or Signing Key
+When your resource server verifies JWTs from an OIDC provider, it fetches the provider’s public keys from the JWKS endpoint. If the provider rotates keys, cached keys become stale.
+
+The correct pattern is to re-fetch JWKS when verification fails with an unknown key ID (kid):
+
+import jwksClient from 'jwks-rsa';
+
+const client = jwksClient({
+  jwksUri: 'https://accounts.example.com/.well-known/jwks.json',
+  cache: true,
+  cacheMaxAge: 10 * 60 * 1000, // 10-minute cache
+  rateLimit: true,
+});
+
+async function getPublicKey(header) {
+  return new Promise((resolve, reject) => {
+    client.getSigningKey(header.kid, (err, key) => {
+      if (err) reject(err);
+      else resolve(key.getPublicKey());
+    });
+  });
+}
+Libraries like jwks-rsa handle cache invalidation and re-fetching automatically. Avoid hardcoding public keys — they will break on the next rotation. See What Is JWKS? for a deeper explanation of key sets and rotation.
+
+When to Return 401 vs 403 (for API Designers)
+If you are building an API, use this decision rule:
+
+No credentials at all → 401
+Credentials present but invalid, expired, or unverifiable → 401
+Credentials valid, identity confirmed, but not allowed to do this → 403
+RFC 6750 §3.1 maps Bearer token error codes to status codes:
+
+WWW-Authenticate error value	Meaning	Correct status code
+invalid_request	Request is malformed — missing or duplicate parameter, bad format	401
+invalid_token	Token is expired, revoked, malformed, or does not exist	401
+insufficient_scope	Token is valid but lacks the required scope for this resource	403
+The insufficient_scope case is the one most often implemented wrongly. A valid token that lacks the write:reports scope should get a 403 — the client is authenticated, it simply does not have permission. Returning a 401 here incorrectly tells the client to re-authenticate, when re-authenticating with the same client credentials will produce the same under-scoped token.
+
+401 and OAuth: The Refresh-Token Pattern
+The most robust way to handle 401s in a client application is an HTTP interceptor that automatically refreshes the access token and replays the original request. Here is a production-quality implementation using the Fetch API:
+
+class AuthenticatedClient {
+  constructor({ tokenEndpoint, clientId, getTokens, saveTokens, onLogout }) {
+    this.tokenEndpoint = tokenEndpoint;
+    this.clientId = clientId;
+    this.getTokens = getTokens;   // () => { accessToken, refreshToken }
+    this.saveTokens = saveTokens; // ({ accessToken, refreshToken }) => void
+    this.onLogout = onLogout;     // () => void — called when refresh fails
+    this._refreshPromise = null;  // deduplicate concurrent refresh calls
+  }
+
+  async fetch(url, options = {}) {
+    const { accessToken } = this.getTokens();
+    const response = await this._doFetch(url, options, accessToken);
+
+    if (response.status !== 401) return response;
+
+    // Check whether the 401 is fixable by refreshing.
+    // Fall back to attempting a refresh when WWW-Authenticate is absent —
+    // many APIs omit this header. If your token endpoint also returns 401
+    // (e.g. on a revoked refresh token), the catch below handles it.
+    const wwwAuth = response.headers.get('WWW-Authenticate') || '';
+    const isTokenError = wwwAuth.includes('invalid_token') || wwwAuth === '';
+
+    if (!isTokenError) return response; // invalid_request — not fixable by refresh
+
+    // Deduplicate: if another call is already refreshing, await the same promise
+    if (!this._refreshPromise) {
+      this._refreshPromise = this._refresh().finally(() => {
+        this._refreshPromise = null;
+      });
+    }
+
+    try {
+      await this._refreshPromise;
+    } catch {
+      this.onLogout();
+      return response;
+    }
+
+    // Replay the original request with the new access token
+    const { accessToken: newToken } = this.getTokens();
+    return this._doFetch(url, options, newToken);
+  }
+
+  async _doFetch(url, options, token) {
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  }
+
+  async _refresh() {
+    const { refreshToken } = this.getTokens();
+    const res = await fetch(this.tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: this.clientId,
+      }),
+    });
+    if (!res.ok) throw new Error('Refresh token rejected');
+    const tokens = await res.json();
+    this.saveTokens(tokens);
+  }
+}
+Key points:
+
+The interceptor reads WWW-Authenticate to distinguish refreshable errors (invalid_token) from non-refreshable ones (invalid_request — malformed header). Refreshing blindly on every 401 causes infinite loops.
+A _refreshPromise deduplication pattern prevents a burst of concurrent 401 responses from triggering multiple simultaneous refresh calls (which would invalidate each other under refresh-token rotation).
+If the refresh itself fails — because the refresh token is expired or revoked — onLogout is called, forcing a full re-authentication.
+Prevention Best Practices
+Set short access token expiry. A common default is 15–30 minutes for access tokens (Authgear’s default is 30 minutes). A short expiry limits the blast radius if a token is leaked — an attacker has at most ~30 minutes before the token is useless. Refresh tokens are typically longer-lived (30–90 days, depending on your security requirements) and single-use under rotation.
+
+Use refresh token rotation. Each refresh token use issues a new refresh token and invalidates the old one. If a stolen refresh token is used, the next legitimate use by the real client will fail (the legitimate client’s token has been invalidated), which surfaces the compromise.
+
+Monitor your 401 rate. A sudden spike in 401 responses is an early indicator of auth issues: a key rotation that was not propagated to all services, a deployment that shipped with wrong environment variables, or a credential-stuffing attack. Wire your 401 rate into your alerting dashboard.
+
+Always send WWW-Authenticate in 401 responses. This is required by RFC 9110 and RFC 6750, but many APIs omit it. Without it, clients cannot distinguish between a missing token, an expired token, or a malformed header — they can only retry blindly.
+
+Validate the aud claim. Resource servers must reject tokens whose aud does not match. Without this check, a token issued for Service A works on Service B — token portability is a security risk.
+
+Use a managed auth platform. Implementing all of the above correctly — JWKS rotation, refresh-token rotation, WWW-Authenticate headers, clock-skew leeway — is non-trivial. A managed platform handles these by default.
+
+401 with Authgear: Out-of-the-Box Handling
+Authgear handles the authentication infrastructure that sits behind every 401 decision:
+
+Token issuance and expiry: Authgear issues short-lived access tokens (default 30 minutes, configurable) with correct exp, aud, iss, and kid claims. Expiry is enforced server-side.
+Refresh token rotation: Enabled by default. Each refresh issues a new refresh token and immediately invalidates the previous one. Stolen refresh tokens are detected and surfaced as auth events.
+JWKS endpoint: Authgear exposes a standards-compliant JWKS endpoint at /.well-known/jwks.json. Keys are rotated periodically. Resource servers that fetch JWKS correctly will never see a signing-key mismatch 401. See What Is JWKS? for details.
+WWW-Authenticate headers: Authgear’s OAuth token endpoint and resource server integrations return properly formed WWW-Authenticate: Bearer headers with RFC 6750-compliant error codes.
+Clock skew tolerance: Authgear applies a configurable leeway on token verification to handle minor clock drift in distributed deployments.
+If your 401 errors come from mismatched configuration between Authgear and your resource server — wrong aud, wrong JWKS URL, or missing Authorization forwarding in your proxy — the Authgear documentation walks through correct resource server integration patterns for common frameworks.
+
+Frequently Asked Questions
+What does a 401 Unauthorized error mean?
+A 401 Unauthorized error means the server could not authenticate the request. Either no credentials were provided, or the credentials supplied — a JWT, API key, session cookie, or Basic Auth header — were invalid, expired, or malformed. The name is a misnomer: “Unauthorized” really means “Unauthenticated.” Try supplying or refreshing your credentials and resending the request.
+
+What is the difference between 401 and 403?
+A 401 means the request has no valid identity attached — the server does not know who you are. A 403 means the server knows who you are but will not allow the action. With a 401, sending valid credentials may succeed. With a 403, better credentials will not help; you need different permissions or a token with a wider scope.
+
+How do I fix a 401 Unauthorized error?
+The fix depends on the auth method. For JWT: decode the token, check the exp claim, and use a refresh token if it has expired. For API keys: verify the key has not been regenerated. For Basic Auth: recheck the username and password and confirm the base64 encoding is correct. In all cases, check the WWW-Authenticate header — it contains the specific error code.
+
+Why does my JWT cause a 401?
+The most common JWT-related causes are: expired exp claim, wrong signing key (after key rotation), aud mismatch between the token and the resource server, and clock skew making the token appear expired. Use the Authgear JWT Debugger to inspect all claims.
+
+What is the WWW-Authenticate header?
+The WWW-Authenticate header is sent in every 401 response to tell the client how to authenticate. For OAuth 2.0 Bearer tokens it carries an error code (invalid_token, invalid_request, or insufficient_scope) and a human-readable description. Clients should parse this header to decide whether to refresh silently, prompt for login, or display an error.
+
+Is a 401 Unauthorized a client or server error?
+It is classified as a 4xx client error — the client sent a request without valid authentication. However, the root cause is often on the server side: an expired signing key, a misconfigured resource server, or a proxy stripping the Authorization header. Treat it as a shared concern.
+
+Should my API return 401 for a missing token or 403?
+Return 401. A missing Authorization header means there is no authentication present at all — the server does not know who the caller is. 403 should only be used when the caller is authenticated but is not permitted to perform the action.
+
+How do OAuth refresh tokens fix 401 errors?
+When an access token expires, the resource server returns a 401 with error=invalid_token. The client catches that response, calls the OAuth token endpoint with the refresh token to obtain a new access token, and replays the original request. Users stay logged in without a full re-authentication — as long as the refresh token itself is still valid and has not been rotated away.
+
+What causes a 401 from clock skew?
+JWT verification compares the token’s exp and iat timestamps to the current server time. If any clock in the chain — client, auth server, or resource server — has drifted, a freshly issued token may appear expired or not yet valid. Add a leeway of 5–30 seconds to your JWT verification library and synchronise all servers via NTP.
+
+Can a CDN or reverse proxy cause a 401?
+Yes. A proxy that strips the Authorization header before forwarding the request to the origin means the origin never sees the credentials and returns 401. Some proxies also cache 401 responses, causing repeated failures even after the client sends valid credentials. Confirm your proxy passes Authorization through and does not cache 4xx responses. For related proxy errors, see HTTP 502 Bad Gateway.
+
+Summary
+A 401 Unauthorized means the server could not verify who is making the request. The most common causes are expired JWTs, missing or malformed Authorization headers, revoked API keys, and signing key mismatches after rotation. The WWW-Authenticate response header — which servers must include in every 401 — tells you exactly which check failed, and should be the first thing you read when debugging.
+
+For API designers: use 401 when there is no valid identity, and 403 when there is a valid identity but it is not permitted to act. For a related error that often appears in auth-protected systems, see HTTP 403 Forbidden.
+
+Related reading:
+
+HTTP 401 vs 403: What’s the Difference and Which to Return — a focused decision guide for API designers
+HTTP 502 Bad Gateway and HTTP 504 Gateway Timeout — gateway errors that can also block login flows
+Session vs Token Authentication — choosing the auth model behind your Authorization header
