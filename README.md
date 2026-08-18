@@ -7,7 +7,7 @@
 
 ---
 
-## 1️⃣ Project Overview
+## 1. Project Overview
 
 `learn-llamaindex` is an enterprise-grade Retrieval-Augmented Generation (RAG) and LLM orchestration framework built with **LlamaIndex**, **Qdrant**, and **Ollama**. It addresses context hallucination, low recall on exact terms, and query-domain mismatch by implementing production RAG architectures—such as **Hybrid Dense-Sparse Search**, **Reciprocal Rank Fusion (RRF)**, **Cross-Encoder Reranking**, **Hierarchical Auto-Merging Retrieval**, **Semantic Router Engines**, and **Categorical Value-Aware Text-to-SQL**.
 
@@ -15,23 +15,23 @@ The repository serves both as a complete technical blueprint and a modular toolk
 
 ---
 
-## 2️⃣ Features
+## 2. Features
 
-- ⚙️ **Persistent Ingestion & Deduplication Pipeline**: Production ingestion pipeline with sentence splitting (256-token chunk size, 20-token overlap), automated metadata enrichment (`category`, `document_name`, `source`), persistent `docstore.json` and `cache.json`, and upsert deduplication.
-- 🔀 **Hybrid Dense + Sparse BM25 Retrieval**: Combines semantic dense vector embeddings (`nomic-embed-text` in Qdrant) with an in-memory BM25 probabilistic sparse keyword retriever for exact match accuracy (e.g., error codes like `ERR-401`).
-- ⚡ **Reciprocal Rank Fusion (RRF) & Cross-Encoder Reranking**: Fuses sparse and dense retrieval rank lists using RRF alongside multi-query generation (`QueryRewriter`), re-scoring top candidates with `BAAI/bge-reranker-base`.
-- 🌲 **Hierarchical Auto-Merging Retrieval**: Multi-tier document parsing (`512 -> 256 -> 128` token hierarchy) linking child leaf nodes to parent context, dynamically merging child chunks when similarity cutoffs are satisfied.
-- 🧭 **Recursive Pointer Retrieval**: Multi-domain routing using `IndexNode` pointer references to steer queries to specialized vector sub-indexes (e.g., RAG specifications vs. Python code documentation).
-- 🛣️ **Semantic Router Engines & Tools**: LLM-driven query routers that evaluate incoming prompts and dynamically select between dedicated query engines or retriever tools based on intent.
-- 📊 **Dynamic Text-to-SQL with Value Retrieval**:
+- **Persistent Ingestion & Deduplication Pipeline**: Production ingestion pipeline with sentence splitting (256-token chunk size, 20-token overlap), automated metadata enrichment (`category`, `document_name`, `source`), persistent `docstore.json` and `cache.json`, and upsert deduplication.
+- **Hybrid Dense + Sparse BM25 Retrieval**: Combines semantic dense vector embeddings (`nomic-embed-text` in Qdrant) with an in-memory BM25 probabilistic sparse keyword retriever for exact match accuracy (e.g., error codes like `ERR-401`).
+- **Reciprocal Rank Fusion (RRF) & Cross-Encoder Reranking**: Fuses sparse and dense retrieval rank lists using RRF alongside multi-query generation (`QueryRewriter`), re-scoring top candidates with `BAAI/bge-reranker-base`.
+- **Hierarchical Auto-Merging Retrieval**: Multi-tier document parsing (`512 -> 256 -> 128` token hierarchy) linking child leaf nodes to parent context, dynamically merging child chunks when similarity cutoffs are satisfied.
+- **Recursive Pointer Retrieval**: Multi-domain routing using `IndexNode` pointer references to steer queries to specialized vector sub-indexes (e.g., RAG specifications vs. Python code documentation).
+- **Semantic Router Engines & Tools**: LLM-driven query routers that evaluate incoming prompts and dynamically select between dedicated query engines or retriever tools based on intent.
+- **Dynamic Text-to-SQL with Value Retrieval**:
   - **Schema Indexing**: Dynamic database schema selection via `ObjectIndex` + `SQLTableRetrieverQueryEngine`.
   - **Categorical Value Indexing**: Extracting and indexing distinct column values (`status: delivered`, `product: Laptop`) as `TextNode` objects to resolve categorical ambiguity in generated SQL `WHERE` clauses.
-- 🛠️ **Callable Function Tool Indexing**: Vector-indexed `FunctionTool` objects enabling dynamic semantic search over python functions (`add`, `multiply`).
-- 📈 **Full RAG Evaluation Harness**: Async evaluation framework executing benchmark tests over `EVAL_DATASET` for **Hit Rate**, **MRR**, **Faithfulness**, **Answer Relevancy**, and **Execution Latency**.
+- **Callable Function Tool Indexing**: Vector-indexed `FunctionTool` objects enabling dynamic semantic search over python functions (`add`, `multiply`).
+- **Full RAG Evaluation Harness**: Async evaluation framework executing benchmark tests over `EVAL_DATASET` for **Hit Rate**, **MRR**, **Faithfulness**, **Answer Relevancy**, and **Execution Latency**.
 
 ---
 
-## 3️⃣ Tech Stack
+## 3. Tech Stack
 
 | Component | Technology | Version | Description / Role |
 | :--- | :--- | :--- | :--- |
@@ -46,7 +46,7 @@ The repository serves both as a complete technical blueprint and a modular toolk
 
 ---
 
-## 4️⃣ Architecture 🔥
+## 4. Architecture
 
 ```mermaid
 flowchart TD
@@ -88,7 +88,7 @@ flowchart TD
 
 ---
 
-## 5️⃣ Project Structure
+## 5. Project Structure
 
 ```
 learn-llamaindex/
@@ -130,7 +130,7 @@ learn-llamaindex/
 
 ---
 
-## 6️⃣ Installation & Setup
+## 6. Installation & Setup
 
 ### Prerequisites
 
@@ -187,7 +187,7 @@ ollama pull gemma4:26b
 
 ---
 
-## 7️⃣ Usage
+## 7. Usage
 
 Run any of the specialized modules directly using Python:
 
@@ -246,7 +246,7 @@ python object_index.py
 
 ---
 
-## 8️⃣ Screenshots / Demo
+## 8. Screenshots / Demo
 
 ### Execution Output: Main Hybrid RAG (`main.py`)
 
@@ -281,7 +281,7 @@ There are 2 orders that have been successfully delivered.
 
 ---
 
-## 9️⃣ API Documentation
+## 9. API Documentation
 
 While the project is organized as a modular Python toolkit rather than an HTTP service, key programmatic Python APIs are documented below:
 
@@ -331,7 +331,7 @@ results = asyncio.run(run_pipeline_evaluation(query_engine, retriever))
 
 ---
 
-## 🔟 Engineering Decisions
+## 10. Engineering Decisions
 
 ### 1. Hybrid Search (Dense + BM25) vs. Single Vector Search
 - **Trade-off**: Dense embeddings (`nomic-embed-text`) capture semantic intent but frequently miss exact alphanumeric strings, error codes (`ERR-401`), or technical keywords. Sparse search (BM25) excels at exact term matches but lacks semantic awareness.
@@ -351,7 +351,7 @@ results = asyncio.run(run_pipeline_evaluation(query_engine, retriever))
 
 ---
 
-## 1️⃣1️⃣ Testing
+## 11. Testing
 
 The project includes an automated async evaluation benchmark suite located in `evaluation/`.
 
@@ -396,13 +396,13 @@ AGGREGATE SUMMARY:
 
 ---
 
-## 1️⃣2️⃣ Limitations & Future Improvements
+## 12. Limitations & Future Improvements
 
 ### Current Limitations
 
-- 💾 **In-Memory BM25 Index**: The custom `BM25Index` builds its term frequency dictionary in-memory per run. Larger document collections require persisting BM25 index states to disk or Redis.
-- ⚡ **Local Hardware Dependency**: Running Ollama with `gemma4:26b` requires sufficient GPU VRAM (16GB+) for fast inference.
-- 📝 **Static Benchmark Dataset**: Ground-truth node IDs in `evaluation/dataset.py` are manually defined.
+- **In-Memory BM25 Index**: The custom `BM25Index` builds its term frequency dictionary in-memory per run. Larger document collections require persisting BM25 index states to disk or Redis.
+- **Local Hardware Dependency**: Running Ollama with `gemma4:26b` requires sufficient GPU VRAM (16GB+) for fast inference.
+- **Static Benchmark Dataset**: Ground-truth node IDs in `evaluation/dataset.py` are manually defined.
 
 ### Future Roadmap
 
